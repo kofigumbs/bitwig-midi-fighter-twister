@@ -55,16 +55,22 @@ function setupSelectLaunchInGrid(midiIn, trackBank) {
 
 function setupColorPlayback(midiOut, trackBank) {
   for (var trackIndex = 0; trackIndex < 4; trackIndex++) {
-    setupColorPlaybackOnTrack(
-      midiOut, 
-      trackIndex,
-      trackBank.getItemAt(trackIndex).clipLauncherSlotBank());
+    var channel = trackBank.getItemAt(trackIndex).clipLauncherSlotBank();
+    clearColors(midiOut, trackIndex, channel);
+    setupColorPlaybackOnTrack(midiOut, trackIndex, channel);
+  }
+}
+
+function clearColors(midiOut, trackIndex, channel) {
+  for (var sceneIndex = 0; sceneIndex < 4; sceneIndex++) {
+    var cc = trackSceneCc(trackIndex, sceneIndex);
+    sendColor(midiOut, false, cc, OFF, OFF);
   }
 }
 
 function setupColorPlaybackOnTrack(midiOut, trackIndex, channel) {
   channel.addPlaybackStateObserver(function(sceneIndex, state, queued) {
-    var cc = trackIndex + 4 * sceneIndex;
+    var cc = trackSceneCc(trackIndex, sceneIndex);
     switch(state) {
       case STOPPED:   return sendColor(midiOut, queued, cc, OFF, OFF);
       case PLAYING:   return sendColor(midiOut, queued, cc, ON,  OFF);
@@ -76,4 +82,8 @@ function setupColorPlaybackOnTrack(midiOut, trackIndex, channel) {
 function sendColor(midiOut, queued, cc, color, animation) {
   midiOut.sendMidi(CHANNEL_2, cc, color);
   midiOut.sendMidi(CHANNEL_3, cc, queued ? PULSE : animation);
+}
+
+function trackSceneCc(trackIndex, sceneIndex) {
+    return trackIndex + 4 * sceneIndex;
 }
