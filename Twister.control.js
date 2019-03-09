@@ -1,7 +1,23 @@
+// Midi Booleans
 var OFF = 0;
 var ON = 127;
-var KNOB_CHANNEL = 176;
-var BUTTON_CHANNEL = 177;
+
+// Midi Channels
+var CHANNEL_1 = 176;
+var CHANNEL_2 = 177;
+var CHANNEL_3 = 178;
+
+// Playback States
+var STOPPED = 0;
+var PLAYING = 1;
+var RECORDING = 2;
+
+// Color Animations
+var FLASH = 6;  // 1/8
+var PULSE = 16; // 1/8
+
+
+/* SCRIPT BOILERPLATE */
 
 loadAPI(8);
 host.setShouldFailOnDeprecatedUse(true);
@@ -10,22 +26,54 @@ host.defineMidiPorts(1, 1);
 
 function exit() {}
 function flush() {}
-function onSysex0(data) {}
+
+
+/* CONTROLLER STUFF */
 
 function init() {
-  trackBank = host.createMainTrackBank(/* tracks */ 4, /* sends */ 0, /* scenes */ 4);
-  host.getMidiInPort(0).setMidiCallback(onMidi0(trackBank));
-  host.getMidiInPort(0).setSysexCallback(onSysex0);
+  var midiIn = host.getMidiInPort(0);
+  var midiOut = host.getMidiOutPort(0);
+  var trackBank = host.createMainTrackBank(
+    4,  // tracks
+    0,  // sends
+    4); // scenes
+  setupSelectLaunchInGrid(midiIn, trackBank);
+  setupColorPlayback(midiOut, trackBank);
 }
 
-function onMidi0(trackBank) {
-  return function(status, data1, data2) {
-    if (status === BUTTON_CHANNEL && data2 === ON) {
+function setupSelectLaunchInGrid(midiIn, trackBank) {
+  midiIn.setMidiCallback(function(status, data1, data2) {
+    if (status === CHANNEL_2 && data2 === ON) {
       var sceneIndex = Math.floor(data1 / 4);
       var trackIndex = Math.floor(data1 % 4);
-      var launcher = trackBank.getChannel(trackIndex).clipLauncherSlotBank();
+      var launcher = trackBank.getItemAt(trackIndex).clipLauncherSlotBank();
       launcher.select(sceneIndex);
       launcher.launch(sceneIndex);
     }
+  });
+}
+
+function setupColorPlayback(midiOut, trackBank) {
+  for (var trackIndex = 0; trackIndex < 4; trackIndex++) {
+    setupColorPlaybackOnTrack(
+      midiOut, 
+      trackIndex,
+      trackBank.getItemAt(trackIndex).clipLauncherSlotBank());
   }
+}
+
+function setupColorPlaybackOnTrack(midiOut, trackIndex, channel) {
+  channel.addPlaybackStateObserver(function(sceneIndex, state, queued) {
+    var cc = trackIndex + 4 * sceneIndex;
+    switch(state) {
+      case STOPPED:   return sendColor(midiOut, queued, cc, OFF, OFF);
+      case PLAYING:   return sendColor(midiOut, queued, cc, ON,  OFF);
+      case RECORDING: return sendColor(midiOut, queued, cc, ON,  FLASH);
+    }
+  });
+}
+
+function sendColor(midiOut, queued, cc, color, animation) {
+  midiOut.sendMidi(CHANNEL_2, cc, color);
+  midiOut.sendMidi(CHANNEL_3, cc, queued ? PULSE : animation);
 }
