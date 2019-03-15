@@ -34,27 +34,26 @@ function init() {
   var midiIn = host.getMidiInPort(0);
   var midiOut = host.getMidiOutPort(0);
   var trackBank = host.createMainTrackBank(
-    4,  // tracks
+    8,  // tracks
     0,  // sends
-    4); // scenes
+    8); // scenes
   setupSelectLaunchInGrid(midiIn, trackBank);
   setupColorPlayback(midiOut, trackBank);
 }
 
 function setupSelectLaunchInGrid(midiIn, trackBank) {
-  midiIn.setMidiCallback(function(status, data1, data2) {
-    if (status === CHANNEL_2 && data2 === ON) {
-      var sceneIndex = Math.floor(data1 / 4);
-      var trackIndex = Math.floor(data1 % 4);
-      var launcher = trackBank.getItemAt(trackIndex).clipLauncherSlotBank();
-      launcher.select(sceneIndex);
-      launcher.launch(sceneIndex);
+  midiIn.setMidiCallback(function(status, cc, note) {
+    if (status === CHANNEL_2 && note === ON) {
+      var index = ccTrackScene(cc);
+      var launcher = trackBank.getItemAt(index.track).clipLauncherSlotBank();
+      launcher.select(index.scene);
+      launcher.launch(index.scene);
     }
   });
 }
 
 function setupColorPlayback(midiOut, trackBank) {
-  for (var trackIndex = 0; trackIndex < 4; trackIndex++) {
+  for (var trackIndex = 0; trackIndex < 8; trackIndex++) {
     var channel = trackBank.getItemAt(trackIndex).clipLauncherSlotBank();
     clearColors(midiOut, trackIndex, channel);
     setupColorPlaybackOnTrack(midiOut, trackIndex, channel);
@@ -62,7 +61,7 @@ function setupColorPlayback(midiOut, trackBank) {
 }
 
 function clearColors(midiOut, trackIndex, channel) {
-  for (var sceneIndex = 0; sceneIndex < 4; sceneIndex++) {
+  for (var sceneIndex = 0; sceneIndex < 8; sceneIndex++) {
     var cc = trackSceneCc(trackIndex, sceneIndex);
     sendColor(midiOut, false, cc, OFF, OFF);
   }
@@ -85,5 +84,24 @@ function sendColor(midiOut, queued, cc, color, animation) {
 }
 
 function trackSceneCc(trackIndex, sceneIndex) {
-    return trackIndex + 4 * sceneIndex;
+  return trackIndex % 4 +             // x-axis
+    4 * (sceneIndex % 4) +            // y-axis
+    16 * Math.floor(trackIndex / 4) + // x-axis, bank 2|4
+    32 * Math.floor(sceneIndex / 4);  // y-axis, bank 3|4
+}
+
+function ccTrackScene(cc) {
+  var offset = ccBankOffset(cc);
+  offset.track += Math.floor(cc % 4);
+  offset.scene += Math.floor(cc / 4) % 4;
+  return offset;
+}
+
+function ccBankOffset(cc) {
+  switch (Math.floor(cc / 16)) {
+    case 0: return { scene: 0, track: 0 };
+    case 1: return { scene: 0, track: 4 };
+    case 2: return { scene: 4, track: 0 };
+    case 3: return { scene: 4, track: 4 };
+  }
 }
