@@ -45,16 +45,29 @@ function setupSelectLaunchInGrid(midiIn, trackBank) {
   midiIn.setMidiCallback(function(status, cc, note) {
     if (status === CHANNEL_2 && note === ON) {
       var index = ccTrackScene(cc);
-      var launcher = trackBank.getItemAt(index.track).clipLauncherSlotBank();
-      launcher.select(index.scene);
-      launcher.launch(index.scene);
+      var track = trackBank.getItemAt(index.track)
+      track.arm().set(true);
+      track.clipLauncherSlotBank().launch(index.scene);
+      unArmByColor(trackBank, index.track, track.color());
     }
   });
 }
 
+function unArmByColor(trackBank, trackIndex, trackColor) {
+  for (var otherTrackIndex = 0; otherTrackIndex < 8; otherTrackIndex++) {
+    var otherTrack = trackBank.getItemAt(otherTrackIndex);
+    if (trackIndex !== otherTrackIndex
+      && otherTrack.color().red() === trackColor.red()
+      && otherTrack.color().green() === trackColor.green()
+      && otherTrack.color().blue() === trackColor.blue()) { otherTrack.arm().set(false) }
+  }
+}
+
 function setupColorPlayback(midiOut, trackBank) {
   for (var trackIndex = 0; trackIndex < 8; trackIndex++) {
-    var channel = trackBank.getItemAt(trackIndex).clipLauncherSlotBank();
+    var track = trackBank.getItemAt(trackIndex);
+    var channel = track.clipLauncherSlotBank();
+    track.color().markInterested();
     clearColors(midiOut, trackIndex, channel);
     setupColorPlaybackOnTrack(midiOut, trackIndex, channel);
   }
