@@ -37,14 +37,19 @@ function init() {
     8,  // tracks
     0,  // sends
     8); // scenes
-  setupSelectLaunchInGrid(midiIn, trackBank);
+  var userControls = host.createUserControls(64);
+  setupSelectLaunchInGrid(midiIn, trackBank, userControls);
   setupPlaybackListeners(midiOut, trackBank);
+  setupEncoderControls(midiOut, userControls);
 }
 
-function setupSelectLaunchInGrid(midiIn, trackBank) {
+function setupSelectLaunchInGrid(midiIn, trackBank, userControls) {
   midiIn.setMidiCallback(function(status, cc, note) {
-    if (status === CHANNEL_2 && note === ON) {
-      var index = ccTrackScene(cc);
+    if (status === CHANNEL_1) {
+      userControls.getControl(cc).set(note, 128);
+
+    } else if (status === CHANNEL_2 && note === ON) {
+      var index = ccToTrackScene(cc);
       var track = trackBank.getItemAt(index.track)
       var channel = track.clipLauncherSlotBank();
       var slot = channel.getItemAt(index.scene);
@@ -87,14 +92,14 @@ function setupPlaybackListeners(midiOut, trackBank) {
 
 function clearColors(midiOut, trackIndex, channel) {
   for (var sceneIndex = 0; sceneIndex < 8; sceneIndex++) {
-    var cc = trackSceneCc(trackIndex, sceneIndex);
+    var cc = trackSceneToCc(trackIndex, sceneIndex);
     sendColor(midiOut, false, cc, OFF, OFF);
   }
 }
 
 function setupColorPlaybackOnTrack(midiOut, trackIndex, channel) {
   channel.addPlaybackStateObserver(function(sceneIndex, state, queued) {
-    var cc = trackSceneCc(trackIndex, sceneIndex);
+    var cc = trackSceneToCc(trackIndex, sceneIndex);
     switch(state) {
       case STOPPED:   return sendColor(midiOut, queued, cc, OFF, OFF);
       case PLAYING:   return sendColor(midiOut, queued, cc, ON,  OFF);
@@ -108,14 +113,27 @@ function sendColor(midiOut, queued, cc, color, animation) {
   midiOut.sendMidi(CHANNEL_3, cc, queued ? PULSE : animation);
 }
 
-function trackSceneCc(trackIndex, sceneIndex) {
+function setupEncoderControls(midiOut, userControls) {
+  for (var controlIndex = 0; controlIndex < 64; controlIndex++) {
+    userControls
+      .getControl(controlIndex)
+      .value()
+      .addValueObserver(128, setEncoder(midiOut, controlIndex));
+  }
+}
+
+function setEncoder(midiOut, cc) {
+  return function(value) { midiOut.sendMidi(CHANNEL_1, cc, value) };
+}
+
+function trackSceneToCc(trackIndex, sceneIndex) {
   return trackIndex % 4 +             // x-axis
     4 * (sceneIndex % 4) +            // y-axis
     16 * Math.floor(trackIndex / 4) + // x-axis, bank 2|4
     32 * Math.floor(sceneIndex / 4);  // y-axis, bank 3|4
 }
 
-function ccTrackScene(cc) {
+function ccToTrackScene(cc) {
   var offset = ccBankOffset(cc);
   offset.track += Math.floor(cc % 4);
   offset.scene += Math.floor(cc / 4) % 4;
