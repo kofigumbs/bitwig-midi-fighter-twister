@@ -33,11 +33,11 @@ function flush() {}
 function init() {
   var midiIn = host.getMidiInPort(0);
   var midiOut = host.getMidiOutPort(0);
+  var userControls = host.createUserControls(64);
   var trackBank = host.createMainTrackBank(
     8,  // tracks
     0,  // sends
     8); // scenes
-  var userControls = host.createUserControls(64);
   setupSelectLaunchInGrid(midiIn, trackBank, userControls);
   setupPlaybackListeners(midiOut, trackBank);
   setupEncoderControls(midiOut, userControls);
@@ -58,7 +58,7 @@ function setupSelectLaunchInGrid(midiIn, trackBank, userControls) {
       track.arm().set(true);
       unArmByColor(trackBank, index.track, track.color());
 
-      // Launch/Stop
+      // Launch | Stop (on double-click)
       (slot.isPlaybackQueued().get() || slot.isRecordingQueued().get())
         ? channel.stop() : slot.launch();
     }
@@ -79,9 +79,13 @@ function setupPlaybackListeners(midiOut, trackBank) {
   for (var trackIndex = 0; trackIndex < 8; trackIndex++) {
     var track = trackBank.getItemAt(trackIndex);
     var channel = track.clipLauncherSlotBank();
-    track.color().markInterested();
+
+    // colors
     clearColors(midiOut, trackIndex, channel);
     setupColorPlaybackOnTrack(midiOut, trackIndex, channel);
+
+    // mark interested
+    track.color().markInterested();
     for (var sceneIndex = 0; sceneIndex < 8; sceneIndex++) {
       var slot = channel.getItemAt(sceneIndex);
       slot.isPlaybackQueued().markInterested();
