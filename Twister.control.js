@@ -38,7 +38,7 @@ function init() {
     0,  // sends
     8); // scenes
   setupSelectLaunchInGrid(midiIn, trackBank);
-  setupColorPlayback(midiOut, trackBank);
+  setupPlaybackListeners(midiOut, trackBank);
 }
 
 function setupSelectLaunchInGrid(midiIn, trackBank) {
@@ -46,9 +46,15 @@ function setupSelectLaunchInGrid(midiIn, trackBank) {
     if (status === CHANNEL_2 && note === ON) {
       var index = ccTrackScene(cc);
       var track = trackBank.getItemAt(index.track)
+      var channel = track.clipLauncherSlotBank();
+      var slot = channel.getItemAt(index.scene);
+
+      // Exclusive arm
       track.arm().set(true);
-      track.clipLauncherSlotBank().launch(index.scene);
       unArmByColor(trackBank, index.track, track.color());
+
+      // Launch/Stop
+      slotPlayback(slot) ? channel.stop() : slot.launch();
     }
   });
 }
@@ -63,13 +69,24 @@ function unArmByColor(trackBank, trackIndex, trackColor) {
   }
 }
 
-function setupColorPlayback(midiOut, trackBank) {
+function slotPlayback(slot) {
+  return slot.isPlaybackQueued().get() ||
+    slot.isPlaying().get() && !slot.isStopQueued(); // double-click
+}
+
+function setupPlaybackListeners(midiOut, trackBank) {
   for (var trackIndex = 0; trackIndex < 8; trackIndex++) {
     var track = trackBank.getItemAt(trackIndex);
     var channel = track.clipLauncherSlotBank();
     track.color().markInterested();
     clearColors(midiOut, trackIndex, channel);
     setupColorPlaybackOnTrack(midiOut, trackIndex, channel);
+    for (var sceneIndex = 0; sceneIndex < 8; sceneIndex++) {
+      var slot = channel.getItemAt(sceneIndex);
+      slot.isPlaying().markInterested();
+      slot.isPlaybackQueued().markInterested();
+      slot.isStopQueued().markInterested();
+    }
   }
 }
 
