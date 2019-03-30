@@ -58,9 +58,8 @@ function setupSelectLaunchInGrid(midiIn, trackBank, userControls) {
       track.arm().set(true);
       unArmByColor(trackBank, index.track, track.color());
 
-      // Launch | Stop (on double-click)
-      (slot.isPlaybackQueued().get() || slot.isRecordingQueued().get())
-        ? channel.stop() : slot.launch();
+      // Launch || Stop
+      checkStops(slot, function(x) { return x.get() }) ? channel.stop() : slot.launch();
     }
   });
 }
@@ -68,10 +67,9 @@ function setupSelectLaunchInGrid(midiIn, trackBank, userControls) {
 function unArmByColor(trackBank, trackIndex, trackColor) {
   for (var otherTrackIndex = 0; otherTrackIndex < 8; otherTrackIndex++) {
     var otherTrack = trackBank.getItemAt(otherTrackIndex);
-    if (trackIndex !== otherTrackIndex
-      && otherTrack.color().red() === trackColor.red()
-      && otherTrack.color().green() === trackColor.green()
-      && otherTrack.color().blue() === trackColor.blue()) { otherTrack.arm().set(false) }
+    if (trackIndex !== otherTrackIndex && colorEq(otherTrack.color(), trackColor)) {
+      otherTrack.arm().set(false);
+    }
   }
 }
 
@@ -87,9 +85,7 @@ function setupPlaybackListeners(midiOut, trackBank) {
     // mark interested
     track.color().markInterested();
     for (var sceneIndex = 0; sceneIndex < 8; sceneIndex++) {
-      var slot = channel.getItemAt(sceneIndex);
-      slot.isPlaybackQueued().markInterested();
-      slot.isRecordingQueued().markInterested();
+      checkStops(channel.getItemAt(sceneIndex), function(x) { x.markInterested() });
     }
   }
 }
@@ -152,3 +148,18 @@ function ccBankOffset(cc) {
     case 3: return { scene: 4, track: 4 };
   }
 }
+
+function colorEq(a, b) {
+  return a.red() === b.red()
+    && a.green() === b.green()
+    && a.blue() === b.blue();
+}
+
+
+function checkStops(slot, check) {
+  if (check(slot.isPlaying()))         return true;
+  if (check(slot.isPlaybackQueued()))  return true;
+  if (check(slot.isRecordingQueued())) return true;
+  return false;
+}
+
